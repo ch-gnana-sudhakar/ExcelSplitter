@@ -8,8 +8,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.Principal;
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +27,9 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,48 +57,28 @@ public class HomeController {
 		
 		model.addAttribute("serverTime", formattedDate );
 		
-		/*String fileLocation = "D:\\TestData\\hind.xlsx";
-		FileInputStream file;
-		try {
-			file = new FileInputStream(new File(fileLocation));
-			Workbook workbook = new XSSFWorkbook(file);
-			
-			Sheet sheet = workbook.getSheetAt(0);
-			 
-			Map<Integer, List<String>> data = new HashMap<Integer, List<String>>();
-			int i = 0;
-			for (Row row : sheet) {
-			    data.put(i, new ArrayList<String>());
-			    for (Cell cell : row) {
-			    	switch(cell.getCellTypeEnum()) {
-			    		case STRING:
-			    			data.get(new Integer(i)).add(cell.getStringCellValue());
-			    	}
-			    	
-			    }
-			    i++;
-			}
-			workbook.close();
-			
-			model.addAttribute("data", data);
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}*/
-		
-
 		return "home";
 	}
 	
+	@SuppressWarnings("unchecked")
 	@RequestMapping(value = "/download")
-	public void download(HttpServletResponse response) {
+	public void download(HttpServletResponse response, Authentication authentication) {
+		UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+		String userName = userDetails.getUsername();
+		String region = "";
+		Collection<GrantedAuthority> authorities = (Collection<GrantedAuthority>)
+				authentication.getAuthorities();
+		for (GrantedAuthority authority : authorities) {
+		     region = authority.getAuthority();
+		     break;
+		  }
+		
+		logger.info("username: " + userName + " region: " + region);
+		
 		String baseFileLocation = "D:\\TestData\\hind.xlsx";
 		FileInputStream baseFile;
 		
-		String newFileLocation = "D:\\TestData\\newhind.xlsx";
+		String newFileLocation = "D:\\TestData\\newhind" + System.currentTimeMillis() + ".xlsx";
 		FileOutputStream fout;
 		
 		try {
@@ -109,9 +94,12 @@ public class HomeController {
 			for (Row row : baseWorksheet) {
 			    Row newRow = newSheet.createRow(i);
 			    for (Cell cell : row) {
+			    	Cell newCell = newRow.createCell(cell.getColumnIndex());
 			    	switch(cell.getCellTypeEnum()) {
+			    		case NUMERIC:
+			    			newCell.setCellValue(cell.getNumericCellValue());
+			    			break;
 			    		case STRING:
-			    			Cell newCell = newRow.createCell(cell.getColumnIndex());
 			    			newCell.setCellValue(cell.getStringCellValue());
 			    	}
 			    	
@@ -126,7 +114,7 @@ public class HomeController {
 			baseWorkbook.close();
 	
 			response.setContentType("application/vnd.ms-excel");
-			response.setHeader("Content-Disposition", "attachment; filename=newHindu" + System.currentTimeMillis() + ".xlsx");
+			response.setHeader("Content-Disposition", "attachment; filename=" + newFileLocation);
 			
 			Path newFile = Paths.get(newFileLocation);
 			Files.copy(newFile, response.getOutputStream());
